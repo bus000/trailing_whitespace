@@ -1,8 +1,10 @@
 #ifndef TRAILING_SPACE_H
 #define TRAILING_SPACE_H
 
-#define NO_ERR            0
-#define WRONG_ARG_NUMBER -1
+#include <stdlib.h>
+
+#define WRONG_ARG_NUMBER EXIT_SUCCESS - 1
+#define FILE_OPEN_ERROR  EXIT_SUCCESS - 2
 
 typedef int bool;
 #define TRUE  1
