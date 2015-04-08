@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "trailing_space.h"
+#include <stdlib.h>
 
 static bool is_whitespace(char c);
 
@@ -16,7 +17,10 @@ int main(int argc, char const *argv[])
     }
 
     /* Open file with read rights. */
-    file = fopen(argv[1], "r");
+    if ((file = fopen(argv[1], "r")) == NULL) {
+        fprintf(stderr, "Could not open file %s\n", argv[1]);
+        return FILE_OPEN_ERROR;
+    }
 
     /* Read the file char by char checking if there is ever a whitespace
      * character before an endline character. */
@@ -32,7 +36,7 @@ int main(int argc, char const *argv[])
 
     printf(has_whitespace ? "Yes\n" : "No\n");
 
-    return NO_ERR;
+    return EXIT_SUCCESS;
 }
 
 static bool is_whitespace(char c)
