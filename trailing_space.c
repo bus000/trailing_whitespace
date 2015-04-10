@@ -4,7 +4,7 @@
 
 static bool is_whitespace(char c);
 static bool has_trailing(FILE *file);
-static void remove_trailing(FILE *file);
+static int remove_trailing(FILE *file);
 
 int main(int argc, char const *argv[])
 {
@@ -36,18 +36,29 @@ int main(int argc, char const *argv[])
     for (i = 1; i < argc; i++) {
         if (*argv[i] == '-') break; /* Break on flag. */
 
-        if ((file = fopen(argv[i], "rw")) == NULL) {
+        if ((file = fopen(argv[i], "r")) == NULL) {
             fprintf(stderr, "Could not open file %s\n", argv[i]);
+            continue;
         }
 
         if (should_remove) {
-            remove_trailing(file);
+            if (remove_trailing(file) != 0) {
+                fprintf(stderr, "Could not create temp file\n");
+            } else {
+                fclose(file);
+                /* Delete old file. */
+                if (remove(argv[i]) != 0) {
+                    fprintf(stderr, "Failed to remove old file\n");
+                } else {
+                    if (rename(TEMP_NAME, argv[i]) != 0) {
+                        fprintf(stderr, "Failed to rename file\n");
+                    }
+                }
+            }
         } else {
             printf(has_trailing(file) ? "Yes\n" : "No\n");
+            fclose(file);
         }
-
-        /* Close file. */
-        fclose(file);
     }
 
     return EXIT_SUCCESS;
@@ -58,8 +69,10 @@ int main(int argc, char const *argv[])
  * FALSE otherwise. */
 static bool has_trailing(FILE *file)
 {
-    char cur_c, prev_c; prev_c = cur_c = 'a';
+    char cur_c, prev_c;
     bool has_trailing = FALSE;
+
+    prev_c = cur_c = 'a';
 
     while ((cur_c = fgetc(file)) != EOF) {
         if (cur_c == '\n' && is_whitespace(prev_c)) {
@@ -73,30 +86,38 @@ static bool has_trailing(FILE *file)
     return has_trailing;
 }
 
-static void remove_trailing(FILE *file)
+/* Create a file with the name TEMP_FILE, and write the content of file to this
+ * new file, but without trailing spaces. */
+static int remove_trailing(FILE *file)
 {
-    int size = 4096;
-    char *buffer = malloc(sizeof(char) * size);
-    char *end = buffer + size - 1;
-    char *next = buffer;
-    char cur;
+    int spaces = 0;
+    char next;
+    FILE *out_file;
 
-    while ((cur = fgetc(file)) != EOF) {
-        if (cur == '\n') {
-            while (is_whitespace(*(next - 1)) && (next - 1) != buffer)
-                next--;
-            *++next = '\n';
+    if ((out_file = fopen(TEMP_NAME, "w")) == NULL) {
+        fprintf(stderr, "Failed to create temp file");
+        return 1;
+    }
+
+    while ((next = fgetc(file)) != EOF) {
+        if (is_whitespace(next)) {
+            spaces++;
+        } else if(next == '\n') {
+            spaces = 0;
+            fputc(next, out_file);
         } else {
-            if (next == end) { /* Reallocate. */
-
-            } else {
-                *next++ = cur;
+            while (spaces > 0) {
+                fputc(' ', out_file);
+                spaces -= 1;
             }
+
+            fputc(next, out_file);
         }
     }
-    *next = EOF;
 
-    fprintf(file, "%s", buffer);
+    fclose(out_file);
+
+    return 0;
 }
 
 static bool is_whitespace(char c)
