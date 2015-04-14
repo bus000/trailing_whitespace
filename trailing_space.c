@@ -1,15 +1,17 @@
 #include <stdio.h>
-#include "trailing_space.h"
 #include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include "trailing_space.h"
 
 static bool is_whitespace(char c);
-static bool has_trailing(FILE *file);
-static int remove_trailing(FILE *file);
+static int has_trailing(const char *filename);
+static int remove_trailing(const char *filename);
 
 int main(int argc, char const *argv[])
 {
     int i;
-    FILE *file;
+    int ret_val = NO_ERR;
     bool should_remove = FALSE;
 
     /* Test the number of arguments. */
@@ -36,28 +38,24 @@ int main(int argc, char const *argv[])
     for (i = 1; i < argc; i++) {
         if (*argv[i] == '-') break; /* Break on flag. */
 
-        if ((file = fopen(argv[i], "r")) == NULL) {
-            fprintf(stderr, "Could not open file %s\n", argv[i]);
-            continue;
+        if (should_remove) {
+            ret_val = remove_trailing(argv[i]);
+        } else {
+            ret_val = has_trailing(argv[i]);
         }
 
-        if (should_remove) {
-            if (remove_trailing(file) != 0) {
-                fprintf(stderr, "Could not create temp file\n");
-            } else {
-                fclose(file);
-                /* Delete old file. */
-                if (remove(argv[i]) != 0) {
-                    fprintf(stderr, "Failed to remove old file\n");
-                } else {
-                    if (rename(TEMP_NAME, argv[i]) != 0) {
-                        fprintf(stderr, "Failed to rename file\n");
-                    }
-                }
-            }
-        } else {
-            printf(has_trailing(file) ? "Yes\n" : "No\n");
-            fclose(file);
+       switch (ret_val) {
+            case NO_ERR:
+
+                break;
+            case COULD_NOT_OPEN_FILE:
+                fprintf(stderr, "Open file error: file %s\n", argv[i]);
+                break;
+            case COULD_NOT_DELETE_FILE:
+                fprintf(stderr, "Delete error: file %s\n", argv[i]);
+                break;
+            default:
+                fprintf(stderr, "Unknown error: file with %s\n", argv[i]);
         }
     }
 
@@ -67,14 +65,18 @@ int main(int argc, char const *argv[])
 /* Read the file char by char checking if there is ever a whitespace character
  * before an endline character.  Return TRUE if a trailing space is found and
  * FALSE otherwise. */
-static bool has_trailing(FILE *file)
+static int has_trailing(const char *filename)
 {
+    FILE *file_in;
     char cur_c, prev_c;
     bool has_trailing = FALSE;
 
+    if ((file_in = fopen(filename, "r")) == NULL)
+        return COULD_NOT_OPEN_FILE;
+
     prev_c = cur_c = 'a';
 
-    while ((cur_c = fgetc(file)) != EOF) {
+    while ((cur_c = fgetc(file_in)) != EOF) {
         if (cur_c == '\n' && is_whitespace(prev_c)) {
             has_trailing = TRUE;
             break;
@@ -83,23 +85,30 @@ static bool has_trailing(FILE *file)
         prev_c = cur_c;
     }
 
-    return has_trailing;
+    if (has_trailing)
+        printf("file %s has trailing\n", filename);
+    else
+        printf("file %s has no trailing\n", filename);
+
+    return NO_ERR;
 }
 
 /* Create a file with the name TEMP_FILE, and write the content of file to this
  * new file, but without trailing spaces. */
-static int remove_trailing(FILE *file)
+static int remove_trailing(const char *filename)
 {
     int spaces = 0;
     char next;
+    FILE *in_file;
     FILE *out_file;
 
-    if ((out_file = fopen(TEMP_NAME, "w")) == NULL) {
-        fprintf(stderr, "Failed to create temp file");
-        return 1;
-    }
+    if ((in_file = fopen(filename, "r")) == NULL)
+        return COULD_NOT_OPEN_FILE;
 
-    while ((next = fgetc(file)) != EOF) {
+    if ((out_file = fopen(TEMP_NAME, "w")) == NULL)
+        return COULD_NOT_OPEN_FILE;
+
+    while ((next = fgetc(in_file)) != EOF) {
         if (is_whitespace(next)) {
             spaces++;
         } else if(next == '\n') {
@@ -115,9 +124,17 @@ static int remove_trailing(FILE *file)
         }
     }
 
+    fclose(in_file);
     fclose(out_file);
 
-    return 0;
+    /* Remove old file and move new file to its old position. */
+    if (unlink(filename) != 0)
+        return COULD_NOT_DELETE_FILE;
+
+    if (rename(TEMP_NAME, filename) != 0)
+        return COULD_NOT_RENAME_FILE;
+
+    return NO_ERR;
 }
 
 static bool is_whitespace(char c)
