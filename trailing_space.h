@@ -12,4 +12,9 @@ typedef int bool;
 
 #define TEMP_NAME ".tempfilename~"
 
+#define NO_ERR                 0
+#define COULD_NOT_OPEN_FILE   -1
+#define COULD_NOT_DELETE_FILE -2
+#define COULD_NOT_RENAME_FILE -3
+
 #endif
