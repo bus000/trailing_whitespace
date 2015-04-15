@@ -2,11 +2,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <assert.h>
 #include "trailing_space.h"
 
 static bool is_whitespace(char c);
 static int has_trailing(const char *filename);
 static int remove_trailing(const char *filename);
+static char * get_temp_file_name(void);
 
 int main(int argc, char const *argv[])
 {
@@ -54,6 +56,8 @@ int main(int argc, char const *argv[])
             case COULD_NOT_DELETE_FILE:
                 fprintf(stderr, "Delete error: file %s\n", argv[i]);
                 break;
+            case TEMP_FILE_CREATION:
+                fprintf(stderr, "Temp creation error: file %s\n", argv[i]);
             default:
                 fprintf(stderr, "Unknown error: file with %s\n", argv[i]);
         }
@@ -62,9 +66,8 @@ int main(int argc, char const *argv[])
     return EXIT_SUCCESS;
 }
 
-/* Read the file char by char checking if there is ever a whitespace character
- * before an endline character.  Return TRUE if a trailing space is found and
- * FALSE otherwise. */
+/* Read the file given as filename and write to stdout if the file has trailing
+ * whitespace or not. */
 static int has_trailing(const char *filename)
 {
     FILE *file_in;
@@ -93,19 +96,24 @@ static int has_trailing(const char *filename)
     return NO_ERR;
 }
 
-/* Create a file with the name TEMP_FILE, and write the content of file to this
- * new file, but without trailing spaces. */
+/* Change the content of the file given by filename to not include trailing
+ * spaces.  The function will collapse all tabs characters in the file to a
+ * space. */
 static int remove_trailing(const char *filename)
 {
     int spaces = 0;
     char next;
     FILE *in_file;
     FILE *out_file;
+    char *temp_filename;
+
+    if ((temp_filename = get_temp_file_name()) == NULL)
+        return TEMP_FILE_CREATION;
 
     if ((in_file = fopen(filename, "r")) == NULL)
         return COULD_NOT_OPEN_FILE;
 
-    if ((out_file = fopen(TEMP_NAME, "w")) == NULL)
+    if ((out_file = fopen(temp_filename, "w")) == NULL)
         return COULD_NOT_OPEN_FILE;
 
     while ((next = fgetc(in_file)) != EOF) {
@@ -137,7 +145,36 @@ static int remove_trailing(const char *filename)
     return NO_ERR;
 }
 
+/* The function returns TRUE if the character c is a space or tab character and
+ * false otherwise. */
 static bool is_whitespace(char c)
 {
     return (c == ' ' || c == '\t');
+}
+
+/* The function returns a not used filename that can be used to generate a
+ * temporary file.  The function returns a NULL pointer if no unique filename
+ * can be found. */
+static char * get_temp_file_name(void) {
+    int max_filename_size = 128;
+    char *temp_file_name = malloc(sizeof(char) * max_filename_size);
+    int filename_size;
+
+    assert(temp_file_name != NULL);
+
+    strcpy(temp_file_name, TEMP_NAME);
+    /*temp_file_name = TEMP_NAME;*/
+    filename_size = strlen(temp_file_name);
+
+    /* Change the filename while the file exist to get a unique name. */
+    while (filename_size + 1 != max_filename_size) {
+        if (access(temp_file_name, F_OK) == -1) {
+            return temp_file_name;
+        }
+
+        temp_file_name[filename_size++] = '~';
+        temp_file_name[filename_size] = '\0';
+    }
+
+    return NULL;
 }
