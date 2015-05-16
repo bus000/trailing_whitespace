@@ -6,8 +6,8 @@
 #include "trailing_space.h"
 
 static bool is_whitespace(char c);
-static int has_trailing(const char *filename);
-static int remove_trailing(const char *filename);
+static int has_trailing(char const *filename);
+static int remove_trailing(char const *filename);
 static char * get_temp_file_name(void);
 
 int main(int argc, char const *argv[])
@@ -68,7 +68,7 @@ int main(int argc, char const *argv[])
 
 /* Read the file given as filename and write to stdout if the file has trailing
  * whitespace or not. */
-static int has_trailing(const char *filename)
+static int has_trailing(char const *filename)
 {
     FILE *file_in;
     char cur_c, prev_c;
@@ -99,7 +99,7 @@ static int has_trailing(const char *filename)
 /* Change the content of the file given by filename to not include trailing
  * spaces.  The function will collapse all tabs characters in the file to a
  * space. */
-static int remove_trailing(const char *filename)
+static int remove_trailing(char const *filename)
 {
     int spaces = 0;
     char next;
